@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+<link rel='stylesheet' type='text/css' href='../Styles/Blueprint_Styles/Style.css' />
+<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.8.0/styles/default.min.css">
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.8.0/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+
+
+<style type="text/css">
+    .syntaxhighlighter {
+        overflow-y: hidden !important;
+        overflow-x: auto !important;
+    }
+</style>    <title>easyWSDL - MTOM Transfer</title>
+</head>
+<body>
+    <h2>MTOM Transfer</h2>
+
+    <p>
+        Typical SOAP web service has some limitation in sending a large binary data (like images, videos, documents, etc). Problem is that the binary data are base64-encoded and added to XML message body. Many XML parsers cannot parse very well huge in size documents. To address this issue there is a possibility to send binary data as an attachment (outside the SOAP message body). Of course Web service has to support this feature (MTOM transfer/attachment).
+
+        So if your web service supports MTOM transfer then you can use EasyWSDL to generate classes with attachment support. To do this you should select <strong>Add MTOM transfer</strong> in generator page. Please remember to add apache-mime4j-*.jar libraries to your project (you will find it in libs folder in generated zip file)
+    </p>
+    To enable MTOM transfer, you need to turn mtom on, like this:
+    <h4>Uploading file</h4>
+    <pre>
+    <code class="java">
+MtomTestService service = new MtomTestService("url");
+service.setEnableMTOM(true);
+
+ByteArrayOutputStream stream=wrapper.getImageStream(R.drawable.ic_launcher1);
+byte[] image = stream.toByteArray();
+service.uploadPicture(new BinaryObject(image));
+        </code>
+    </pre>
+    <h4>Retrieving file</h4>
+    <pre>
+    <code class="java">
+MimeServiceTestPortBinding service = new MimeServiceTestPortBinding("url");
+service.setEnableMTOM(true);
+
+BinaryObject imgBytes=service.retrievePicture(1);
+MTOM.SoapAttachment attachment= (MTOM.SoapAttachment) imgBytes.getUnderlayingObject();
+InputStream stream=attachment.getStream();
+        </code>
+    </pre>
+    BinaryObject class represents any binary data and can be easily created from a byte array, InputStream and other types.
+    <p>
+        By default, attachments are stored in a memory (it uses MemoryDestinationManager) so in case you retrieve large binary data you still can have OutOfMemoryException in Android. You can change this default behavior by using FileDestinationManager which uses file system to store attachments in files.
+    </p>
+    <p>To configure your classes to store attachments in files you can create a custom service class and overwrite createRequestResultHandler method, like this:</p>
+    <pre>
+        <code class="java">
+public class CustomService extends MimeServiceTestPortBinding
+{
+    private MTOM.FileDestinationManager manager=null;
+
+    @Override
+    protected RequestResultHandler createRequestResultHandler() {
+        RequestResultHandler handler= super.createRequestResultHandler();
+        manager= new MTOM.FileDestinationManager("c:\\folder");
+        handler.setDestinationManager(manager);
+        return handler;
+    }
+
+    public void RemoveAllAttachments()
+    {
+        manager.removeAllAttachments();
+    }
+}
+            </code>
+        </pre>
+    <p>In baseDirectory you should set a path to the folder where you want to store files. We recommend to use a dedicated folder which can be deleted if you don't need attachments anymore.</p>
+    <div class="warningBox" style="width: auto">
+        <p>
+            Keep in mind that attachments can be large and every time your application download a new attachment it will take some space in the device storage, so you should remove attachment files when you don't need them. To remove all attachment files, you can use RemoveAllFiles() method.
+        </p>
+    </div>
+</body>
+</html>
+
