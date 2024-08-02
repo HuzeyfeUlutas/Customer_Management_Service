@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+
+<link rel='stylesheet' type='text/css' href='../Styles/Blueprint_Styles/Style.css' />
+<link rel="stylesheet" href="https://unpkg.com/@highlightjs/cdn-assets@11.8.0/styles/default.min.css">
+<script src="https://unpkg.com/@highlightjs/cdn-assets@11.8.0/highlight.min.js"></script>
+<script>hljs.initHighlightingOnLoad();</script>
+
+
+<style type="text/css">
+    .syntaxhighlighter {
+        overflow-y: hidden !important;
+        overflow-x: auto !important;
+    }
+</style>    <title>easyWSDL - Tips & tricks</title>
+</head>
+<body>
+
+    <h2 id="basicAuthentication">Basic authentication</h2>
+
+    <p>
+        To implement a Basic authentication, can set username and password in your service class:
+    </p>
+    <pre>
+    <code class="java">
+REOKPSPublicSoap service = new REOKPSPublicSoap();
+service.setUserName("my user");
+service.setPassword("my password");
+service.TCKimlikNoDogrula();
+
+        </code>
+        </pre>
+    <br />
+    <br />
+    <h2 id="anyCollection">How to use any collection?</h2>
+    <p>
+        Some web services use &lt;any&gt; element to return/retrieve any type of data. The schema (structure) of these data is unknown so EasyWSDL are not able to generate a strongly typed
+        fields for them. Instead, there is one field any which is a collection of PropertyInfo objects and using it you can still retrieve or send such data in a raw format.
+        <strong>You can also add any collection to all generated classes by selecting <i>Generate All classes</i> in generator settings</strong>.
+        Use this feature only if you find that some elements are missing in the generated classes.
+        <br />
+        <br />
+        Here you will find example how to retrieve and send data using any collection.
+    </p>
+
+    <pre>
+    <code class="xml">
+&lt;n4:SearchGroups xmlns:n4="http://namespace.url/IBodyArchitectAccessService/"&gt;
+    &lt;n5:ExerciseSearchCriteriaGroup xmlns:n5="http://schemas.datacontract.org/2004/07/BodyArchitect.Service.Model"&gt;
+        Global
+    &lt;/n5:ExerciseSearchCriteriaGroup&gt;
+&lt;/n4:SearchGroups&gt;
+        </code>
+</pre>
+    <br />
+    <br />
+    <h4>Sending custom value</h4>
+    <pre>
+    <code class="java">
+Element exerciseTypeAny=xml.createElementNS("http://MYBASERVICE.TK/IBodyArchitectAccessService/","SearchGroups");
+Element innerAny=xml.createElementNS("http://MYBASERVICE.TK/IBodyArchitectAccessService/","ExerciseSearchCriteriaGroup");
+exerciseTypeAny.appendChild(innerAny);
+
+innerAny.setTextContent("Global");
+
+exerciseSearchCriteria.any.add(exerciseTypeAny);
+
+PagedResultOfExerciseDTO5oAtqRlh exercises = service.GetExercises(sessionData.Token, exerciseSearchCriteria, info);
+        </code>
+</pre>
+    <h4>Retrieving custom value</h4>
+<pre>
+    <code class="java">
+for(Object obj : exercises.any)
+{
+    Element elem=(Element)obj;
+    if(elem.getLocalName().equals("Details"))
+    {
+
+    }
+}
+        </code>
+</pre>
+    
+<br />
+    <br />
+    <h2 id="bestPractices">Best practices</h2>
+    <p>
+        Sometimes you need to modify generated classes. The recommended way of doing it is to create a new class inherits from the generated class and make changes there (if possible of course). Using this you can easily regenerate
+        classes again without loosing your modifications.
+    </p>
+    <p>Here you find an example how to configure internal ksoap2 Transport class in your service class</p>
+
+    <pre>
+    <code class="java">
+public class CustomService extends REOKPSPublicSoap
+{
+    private REOMTOM.FileDestinationManager manager=null;
+
+    @Override
+    protected REORequestResultHandler createRequestResultHandler() {
+        REORequestResultHandler handler= super.createRequestResultHandler();
+        manager= new REOMTOM.FileDestinationManager("c:\\folder");
+        handler.setDestinationManager(manager);
+        return handler;
+    }
+
+    @Override
+    protected void sendRequest(String soapAction, Document soapBody, RequestResultHandler handler) throws Exception {
+        //here you can add code which will be invoked before the request
+        super.sendRequest(soapAction, soapBody, handler);
+        //here you can add code which will be invoked after the request
+    }
+}
+        </code>
+</pre>
+    <p>Now to connect to your web service you should use MyService class instead of REOKPSPublicSoap.</p>
+
+<br />
+<br />
+<h2 id="cookieManagement">How to set a cookie from the response (cookie management)?</h2>
+<p>
+    The easiest way is to maintain cookies between requests is to use CookieManager class. Basically put these two lines at the start of your application
+</p>
+
+<pre>
+    <code class="java">
+    CookieManager cookieManager = new CookieManager();
+    CookieHandler.setDefault(cookieManager);
+    </code>
+</pre>
+
+<br />
+<br />
+<h2 id="dateTimeManagement">How to create custom Date/Time handler?</h2>
+<p>
+    If you find that easyWSDL classes handle date/time in a wrong way, you can create a custom provider. First step is to create a converter class, where you could override one or more methods:
+</p>
+
+<pre>
+    <code class="java">
+    public class MyCustomDateConverter extends REOStandardDateTimeParser
+    {
+        @Override
+        public LocalDate parseLocal(String value) {
+            if (value == null) {
+                return null;
+            }
+            DateTimeFormatter f = new DateTimeFormatterBuilder()
+                    .appendPattern("yyyy-MM-ddxxx")
+                    .toFormatter();
+            return LocalDate.parse(value,f);
+        }
+    }
+    </code>
+</pre>
+<p>
+    Next is to create an instance of this class and set it into REORequestResultHandler. You need to do this before you connect to your webservice.
+</p>
+<pre>
+    <code class="java">
+    MyCustomDateConverter converter = new MyCustomDateConverter();
+    REORequestResultHandler.setDateTimeParser(converter);
+    </code>
+
+</pre>
+
+<h2 id="customSoapHeaders">How to add custom SOAP headers?</h2>
+<p>
+    The easiest way is to create a custom class which inherits from the generated service class. Then override <code>createRequestResultHandler</code> method and set correct soap headers.
+    In the code you should use this custom class to invoke a web service. Here is an example:
+</p>
+
+<pre>
+    <code class="kotlin">
+public class CustomService extends REOKPSPublicSoap {
+    @Override
+    protected REORequestResultHandler createRequestResultHandler() {
+        REORequestResultHandler handler = super.createRequestResultHandler();
+
+        try {
+            org.w3c.dom.Element soapHeader = handler.getHeader();
+            DocumentBuilderFactory builderFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = builderFactory.newDocumentBuilder();
+            org.w3c.dom.Document xml = docBuilder.newDocument();
+            org.w3c.dom.Element apiKeyElement = xml.createElement("ApiKey");
+            soapHeader.appendChild(apiKeyElement);
+            apiKeyElement.setTextContent("12345");
+        } catch (ParserConfigurationException e) {
+            throw new RuntimeException(e);
+        }
+
+        return handler;
+    }
+}
+
+
+CustomService service = new CustomService();
+service.TCKimlikNoDogrula();
+
+        </code>
+</pre>
+</body>
+
+</html>
+
